@@ -1,0 +1,81 @@
+# =============================================================================
+# Binance USD-M Futures scalping bot configuration
+# =============================================================================
+
+# Execution mode:
+#   paper  - simulate fills locally against live market data (no real orders)
+#   live   - send real orders to Binance (requires API keys + trading rights)
+mode: paper
+
+# Base quote asset all traded symbols are denominated in.
+quote_asset: USDT
+
+scanner:
+  # How often (seconds) to re-rank the universe of tradable symbols.
+  refresh_sec: 300
+  # Number of most-liquid symbols to actively trade.
+  top_n: 8
+  # Minimum 24h quote volume (in quote_asset) for a symbol to qualify.
+  min_quote_volume: 50000000
+  # Maximum allowed relative bid/ask spread (fraction of mid price).
+  max_spread_pct: 0.0005
+  # Minimum recent volatility (ATR / price) required to bother trading.
+  min_volatility_pct: 0.0015
+  # Only consider PERPETUAL contracts.
+  perpetual_only: true
+
+feed:
+  # Kline interval used by the momentum strategy.
+  kline_interval: "1m"
+  # Number of order-book levels to subscribe to for imbalance analysis.
+  depth_levels: 20
+
+strategies:
+  momentum:
+    enabled: true
+    weight: 1.0
+    ema_fast: 9
+    ema_slow: 21
+    # Minimum relative EMA separation to emit a signal.
+    min_separation_pct: 0.0003
+  orderbook_imbalance:
+    enabled: true
+    weight: 1.0
+    # Fraction of top book depth to aggregate for imbalance.
+    depth_fraction: 0.5
+    # Imbalance ratio above/below which a directional signal fires.
+    threshold: 0.65
+
+aggregator:
+  # Minimum absolute aggregated score (0..1) required to open a position.
+  entry_threshold: 0.5
+
+risk:
+  # Total account equity assumed for paper trading (quote_asset).
+  paper_equity: 1000.0
+  # Leverage applied on futures positions.
+  leverage: 5
+  # Fraction of equity risked as notional per trade (before leverage).
+  risk_per_trade_pct: 0.02
+  # Stop-loss / take-profit as fraction of entry price.
+  stop_loss_pct: 0.004
+  take_profit_pct: 0.006
+  # Max time a position may stay open (seconds) -> forces the "few minutes" horizon.
+  max_holding_sec: 300
+  # Maximum simultaneous open positions across all symbols.
+  max_open_positions: 3
+  # Trading halts for the day once realized PnL drops below this (quote_asset).
+  max_daily_loss: 50.0
+  # Cooldown (seconds) after closing a position on a symbol before re-entry.
+  cooldown_sec: 60
+  # Taker fee fraction applied per side in paper simulation.
+  taker_fee_pct: 0.0004
+
+engine:
+  # Main decision loop cadence (seconds).
+  tick_sec: 1.0
+
+logging:
+  level: INFO
+  # Directory for trade/PnL CSV logs.
+  dir: logs
