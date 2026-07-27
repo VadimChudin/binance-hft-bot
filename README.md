@@ -47,7 +47,8 @@ Starts in **paper-trading** mode (simulated fills on live market data). Switch t
 - `hftbot/scanner.py` — liquidity/volatility ranking of all USD-M perpetuals.
 - `hftbot/exchange/binance_client.py` — async REST client (public + signed).
 - `hftbot/exchange/feed.py` — combined WebSocket feed (klines + partial depth).
-- `hftbot/strategies/` — pluggable analyzer bots (momentum, order-book imbalance).
+- `hftbot/strategies/` — pluggable analyzer bots (momentum, order-book imbalance, mean-reversion).
+- `hftbot/backtest/` — historical data loader, bar-by-bar simulator, metrics.
 - `hftbot/aggregator.py` — weighted combination of strategy signals.
 - `hftbot/risk.py` — position sizing, stops/targets, exposure & loss limits.
 - `hftbot/execution/` — `paper.py` (simulation) and `live.py` (real orders).
@@ -88,6 +89,34 @@ All tunables live in `config.yaml`: scanner thresholds, strategy params/weights,
 aggregator entry threshold, and full risk settings (leverage, SL/TP, max holding
 time, max open positions, daily loss limit, cooldown).
 
+## Backtesting
+
+Before risking money, validate strategies on historical data. The backtester
+downloads public USD-M futures klines from `data.binance.vision` (no auth, no
+geo-restriction), caches them under `data/klines/`, and replays them bar-by-bar
+through the **same** strategies, aggregator and risk parameters as the live bot.
+
+```bash
+python backtest.py --symbols BTCUSDT ETHUSDT SOLUSDT --interval 1m \
+    --start 2024-06-01 --end 2024-06-07
+
+# pick specific strategies (order-book imbalance can't be backtested — no
+# historical depth data — so it's skipped automatically):
+python backtest.py --symbols SOLUSDT --strategies momentum mean_reversion \
+    --start 2024-06-01 --end 2024-06-03
+```
+
+Reported metrics per symbol: trades, win rate, return %, PnL, profit factor,
+max drawdown, Sharpe, average holding time, fees.
+
+**Reality check:** entries fill at the signal bar's close; stop-loss/take-profit
+are checked against each later bar's high/low (stop assumed first if both are
+touched); taker fees are charged both sides. With the *default* parameters the
+simple momentum/mean-reversion bots do **not** print money on recent data —
+fees and noise dominate. Treat the framework as a foundation to research and
+tune real edges, not a turnkey profit machine. Recommended path: backtest →
+tune → paper on live market → tiny live size.
+
 ## Tests
 
 ```bash
@@ -96,7 +125,7 @@ pytest
 ```
 
 ## Roadmap
-- More analyzer bots (mean-reversion RSI/Bollinger, volume breakout, funding-rate).
+- More analyzer bots (volume breakout, funding-rate, VWAP reversion).
+- Parameter optimization / walk-forward over the backtester.
 - Redis-backed data bus + multi-process scaling.
 - FastAPI dashboard with live PnL and an emergency stop.
-- Backtesting harness over historical klines.
