@@ -117,6 +117,63 @@ fees and noise dominate. Treat the framework as a foundation to research and
 tune real edges, not a turnkey profit machine. Recommended path: backtest →
 tune → paper on live market → tiny live size.
 
+## Quant research: does any edge survive costs?
+
+The `hftbot/research/` package + `research.py` / `trend_backtest.py` are a
+proper quant research harness (pandas + scikit-learn). Install extras:
+
+```bash
+pip install -r requirements-research.txt
+```
+
+### 1) ML directional model at 1-minute scale — NO edge
+
+`research.py` builds ~35 causal features (multi-horizon returns, EMA/RSI/MACD,
+Bollinger, realized vol, **order-flow imbalance** from taker-buy volume, trade
+counts, Kaufman efficiency ratio, time-of-day), labels bars with a
+**triple-barrier** (up/down/timeout), and trains a gradient-boosted classifier
+in a **purged walk-forward** (train on the past, predict the unseen future).
+
+```bash
+python research.py --symbols BTCUSDT ETHUSDT SOLUSDT BNBUSDT \
+    --start 2024-01-01 --end 2024-06-30 --barrier 0.008 --horizon 120
+```
+
+Result on 4 symbols / 6 months: **out-of-sample AUC ≈ 0.50** (0.498–0.515).
+Translation: minute-scale direction is ~unpredictable from candle+order-flow
+data, and after round-trip costs the strategy loses. This matches reality —
+real HFT edge needs L2 order-book depth and latency we cannot get from
+historical klines. **Conclusion: don't scalp minutes with this data.**
+
+### 2) Vol-targeted trend-following on 1h — robust positive edge
+
+Where edge historically *does* survive costs is time-series trend following.
+`trend_backtest.py` sizes a `sign(EMA_fast − EMA_slow)` signal (trend-gated) to a
+target volatility, charges turnover costs, and reports risk-adjusted returns.
+
+```bash
+python trend_backtest.py --symbols BTCUSDT ETHUSDT SOLUSDT BNBUSDT \
+    --interval 1h --start 2021-01-01 --end 2024-12-31
+```
+
+Equal-weight portfolio, 2021–2024 (net of 5bp/turn costs), robust across EMA
+params (Sharpe 0.8–1.0):
+
+| period | CAGR | Sharpe | max DD |
+|---|---|---|---|
+| 2021–2024 (full) | ~28–37% | 0.82–0.99 | ~32–40% |
+| 2022 bear only | ~39% | ~0.99 | ~20% |
+| 2023–2024 | ~25% | ~0.76 | ~32% |
+
+Positive in **both** the bull and the 2022 bear (it shorts) — a genuine,
+regime-independent edge.
+
+**Honest caveats:** Sharpe ~0.9 with 30%+ drawdowns is good, not a money
+printer; this holds positions for **hours–days** (not minutes), so it is *not*
+the original scalping idea; funding fees and slippage beyond 5bp are not yet
+modeled; and past performance never guarantees future results. Use small size
+and paper-trade first.
+
 ## Tests
 
 ```bash

@@ -1,0 +1,5 @@
+# Heavy deps for the quant research pipeline (research.py / trend_backtest.py).
+# Not needed to run the live/paper bot or the lightweight backtest.py.
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
