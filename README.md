@@ -174,6 +174,52 @@ the original scalping idea; funding fees and slippage beyond 5bp are not yet
 modeled; and past performance never guarantees future results. Use small size
 and paper-trade first.
 
+### 3) L2 order-flow microstructure — a real short-horizon edge
+
+Binance publishes **free** order-book / order-flow history at
+`data.binance.vision` (futures `bookDepth`, `aggTrades`, `metrics`).
+`hftbot/research/microstructure.py` turns them into 1-minute features:
+order-flow imbalance (signed via `aggTrades`), depth imbalance at ±1/2/5%
+(`bookDepth`), book slope, trade intensity, open-interest change, long/short
+ratios. `micro_research.py` adds them to the candle features; `micro_sweep.py`
+sweeps barrier/horizon × threshold × cost.
+
+**Ablation (BTCUSDT, purged walk-forward, May–Jun 2024):**
+
+| features | OOS AUC |
+|---|---|
+| candles only | **0.53** |
+| candles + L2 order-flow | **0.64** |
+
+Pooled BTC+ETH at a ~6-minute horizon reaches **AUC ≈ 0.70**. The edge is
+strongest at *very short* horizons (minutes) and decays as the horizon grows —
+i.e. order flow really does predict the next few minutes. This is a large,
+genuine improvement over candles alone.
+
+**Is it profitable? Only with maker-grade fees — honest breakdown:**
+break-even is ≈ **0.023% per side**. So:
+
+| execution | fee/side | result |
+|---|---|---|
+| retail taker | ~0.05% | **loses** (edge too thin for the fee) |
+| maker / VIP+BNB | ~0.018% | marginally **positive** (~1–3 bp/trade) |
+
+Caveat: the eye-popping "+600% / Sharpe 28" cells `micro_sweep.py` can print at
+near-zero fees are **optimistic artifacts** — they compound thousands of tiny
+trades and assume idealized fills at the exact barrier price. The trustworthy
+number is **~1–3 basis points of *gross* edge per trade**. To capture it you must
+(a) trade as a **maker** (limit orders, ~0.018% fee) and (b) actually get filled
+without slippage — neither is guaranteed. So: the signal is real and deployable
+(the live bot already streams the depth data needed to compute it), but turning
+it into stable net profit hinges on execution quality, not on the model.
+
+```bash
+pip install -r requirements-research.txt
+python micro_research.py --symbols BTCUSDT --start 2024-05-01 --end 2024-06-30 \
+    --barrier 0.002 --horizon 15               # add --price-only for the ablation
+python micro_sweep.py --symbols BTCUSDT ETHUSDT # barrier/horizon x threshold x cost
+```
+
 ## Tests
 
 ```bash
