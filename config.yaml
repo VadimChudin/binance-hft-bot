@@ -45,6 +45,16 @@ strategies:
     depth_fraction: 0.5
     # Imbalance ratio above/below which a directional signal fires.
     threshold: 0.65
+  # Kline-based mean reversion (RSI + Bollinger). Disabled live by default so it
+  # doesn't fight momentum; enable it or select it via `backtest.py --strategies`.
+  mean_reversion:
+    enabled: false
+    weight: 1.0
+    period: 20
+    num_std: 2.0
+    rsi_period: 14
+    rsi_low: 30.0
+    rsi_high: 70.0
 
 aggregator:
   # Minimum absolute aggregated score (0..1) required to open a position.
